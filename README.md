@@ -3,5 +3,5 @@
 Module_init() 함수로 module 시작                                                                                                      
 Module_exit() 함수로 module 종료
 
-register_blkdev() 함수를 이용해 device의 major, minor  number를 할당해준다.
-
+register_blkdev() 함수를 이용해 device의 major, minor  number를 할당해준다. (init 함수에서)                                                                 
+unregister_blkdev() 함수를 이용해 할당한 번호를 제거한다. (exit 함수에서)
