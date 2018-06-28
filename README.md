@@ -49,8 +49,11 @@ bio_for_each_segment()매크로를 이용해 bio_vec을 하나씩 꺼내와 처�
 
 
 
-
-
+드라이버 등록이 잘 되었으면 /dev/mybrd 파일과 /sys/block/mybrd 폴더가 생성 되었을 것이다.
+/sys/block/mybrd 폴더에서 가장 중요한 파일은 'stat'파일로 이 장치에 얼마만큼의 I/O가 발생했는지를 기록하는 파일이다.
+(자세한 정보는 https://www.kernel.org/doc/Documentation/block/stat.txt 를 참고)
+또한 queue폴더는 앞서 정의한 request queue의 정보를 담고있다.         
+(자세한 정보는 https://www.kernel.org/doc/Documentation/block/queue-sysfs.txt 를 참고)
 
 
 
