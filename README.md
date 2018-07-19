@@ -39,7 +39,7 @@ add_disk()가 호출된 후에는 /dev/mybrd 파일과 /sys/block/mybrd 디렉�
 *(add_disk()가 호출된 시점부터 디스크로 I/O가 발생하기 때문에 이전에 I/O를 처리할 준비가 되어있어야 한다.)               
 
 
-
+  
 --bio & bio_io_vec struct--                                                    
 불연속하게 저장된 각각의 메모리 공간을 '세그먼트'라고 하며, 각 세그먼트는 bio_vec struct를 통해 관리된다.                  
 bio struct는 bio_io_vec 필드를 통해 bio_vec struct를 배열로 저장하여 입출력 연산과 관련된 세그먼트들을 관리한다.
@@ -53,8 +53,8 @@ bio_for_each_segment()매크로를 이용해 bio_vec을 하나씩 꺼내와 처�
 
 드라이버 등록이 잘 되었으면 /dev/mybrd 파일과 /sys/block/mybrd 폴더가 생성 되었을 것이다.
 /sys/block/mybrd 폴더에서 가장 중요한 파일은 'stat'파일로 이 장치에 얼마만큼의 I/O가 발생했는지를 기록하는 파일이다.
-(자세한 정보는 https://www.kernel.org/doc/Documentation/block/stat.txt 를 참고)
-또한 queue폴더는 앞서 정의한 request queue의 정보를 담고있다.         
+(자세한 정보는 https://www.kernel.org/doc/Documentation/block/stat.txt 를 참고)                                                    
+또한 queue폴더는 앞서 정의한 request queue의 정보를 담고있다.                                                                              
 (자세한 정보는 https://www.kernel.org/doc/Documentation/block/queue-sysfs.txt 를 참고)
 
 
@@ -82,21 +82,38 @@ mybrd_insert_page()를 이용해 트리에 페이지를 추가한다. 가장 먼
 
 --App과 커널간 데이터 이동--                                                                                                       
 copy_from_user_to_mybrd()함수는 사용자로부터 커널을 통해 전달된 데이터를 램디스크에 쓰는 함수이다.                                    
-인자로는 src_page(데이터가 저장된 페이지), len(데이터 크기), src_offset(페이지 안에서 데이터 시작 offset),sector(커널이 요청한 섹터 번호)이다.
-copy_from_user_to_mybrd() --> write
-copy_from_mybrd_to_user() --> read
+인자로는 src_page(데이터가 저장된 페이지), len(데이터 크기), src_offset(페이지 안에서 데이터 시작 offset),sector(커널이 요청한 섹터 번호)이다.                    
+copy_from_user_to_mybrd() --> write                                                                                   
+copy_from_mybrd_to_user() --> read                                                                                  
 
 
 
-------------------------------------------request-mode-----------------------------------------                       
-여기서 부터는 bio가 아닌 request를 처리하도록 코드를 수정해 나간다.                                                               
+------------------------------------------request queue(single queue)mode-----------------------------------------                       
+여기서 부터는 bio가 아닌 request를 처리하도록 코드를 수정해 나간다.                                                                                                                                    
+
+1. irqmode 추가. 
 
 
+-------------------------------------------multi queue mode-------------------------------------------------------
+struct blk_mq_tag_set : 커널이 큐를 관리할 때 사용할 데이터를 표현한 객체.
+
+    ops: request-queue의 동작을 위한 함수들                                  
+    nr_hw_queues: hw-queue의 갯수                                                      
+    queue_depth: hw-queue가 최대 가질 수 있는 request의 갯수                                   
+    numa_node: hw-queue 등 커널이 필요한 객체들을 할당할 NUMA 노드의 번호                                              
+    cmd_size: sw-queue에서 hw-queue로 request를 전달할때 같이 전달할 추가 정보의 크기                                     
+    driver_data: hw-queue에게 드라이버가 전달할 데이터                                                         
+
+최종적으로 큐를 생성하는 함수는 blk_mq_init_queue()이다.                                        
+blk_mq_init_allocated_queue()는 sw queue와 hw queue 모두를 초기화한다. 모든 큐와 각 큐가 어떻게 매칭될지, 각 큐들의 정보 등을 request_queue 객체를 만들어서 관리한다. 다음은 request_queue의 필드들이다.
 
 
-
-
-
+    queue_ctx: sw-queue에 대한 정보
+    queue_hctxs: hw-queue에 대한 정보
+    mq_map: sw-queue와 hw-queue가 어떻게 매칭될지에 필요한 정보. 예를 들어 2개의 sw-queue와 1개의 hw-queue가 만들어졌으면 모든 sw-queue의 request들이 하나의 hw-queue로 전달되야합니다. 2:2로 매칭될수도 있고, 4:1, 4:2 등등 드라이버가 결정하기 나름입니다. mq_map이 이런 매칭을 결정하는게 아니고 드라이버가 제공한 함수에서 결정하는데, mq_map은 그런 결정에 필요한 정보들을 가지고 있습니다. (디폴트로 커널이 제공하는 함수도 있고 우리는 커널 함수를 쓰겠습니다.)
+    make_request_fn: blk_queue_make_request() 함수를 써서 hw-queue의 갯수에 따라 bio 처리 함수를 다르게 지정합니다.
+    
+마지막으로 blk_mq_init_queues()함수를 호출하게 되는데 여기에서 mybrd_mq_ops.init_hctx 콜백 함수가 호출된다. 이는 각 hw-queue를 초기화하는 함수이다.
 
 
 
